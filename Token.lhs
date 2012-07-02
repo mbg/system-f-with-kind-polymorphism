@@ -10,6 +10,7 @@
 >   data Token = TVar String
 >              | TType String
 >              | TVal Int
+>              | TLet
 >              | TAbs
 >              | TDot
 >              | TOpen

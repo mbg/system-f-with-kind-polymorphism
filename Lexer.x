@@ -13,6 +13,7 @@ tokens :-
 
   $white+				;
   "--".*				;
+  "let"                 { \s -> TLet }
   $lower+               { \s -> TVar s }
   $upper $lower*        { \s -> TType s }
   $digit+               { \s -> TVal (read s) }

@@ -27,16 +27,25 @@ import AST
     VAL     { TVal $$ }
     VAR     { TVar $$ }
     TYPE    { TType $$ }
+    LET     { TLet }
     
-%right '->' 
+%right VAR
+%left '=' 
+%right '->'
 
 %%
 
-Def  : VAR '=' Exp                  { Def $1 $3 }
-Exp  : VAL                          { Val $1 }
+Def  : LET VAR '=' Exp              { Def $2 $4 }
+
+Exp  :: { Expr }
+     : '\\' VAR ':' Type '.' Exp    { Abs $2 $4 $6 }
+     | Exp1                         { $1 }
+Exp1 :: { Expr }
+     : Exp1 Atom                    { App $1 $2 }
+     | Atom                         { $1 }
+Atom :: { Expr }
+     : VAL                          { Val $1 }
      | VAR                          { Var $1 }
-     | '\\' VAR ':' Type '.' Exp    { Abs $2 $4 $6 }
-     | '(' Exp Exp ')'              { App $2 $3 }
      | '(' Exp ')'                  { $2 }
 Type : TYPE                         { ConTy $1 }
      | Type '->' Type               { FunTy $1 $3 }

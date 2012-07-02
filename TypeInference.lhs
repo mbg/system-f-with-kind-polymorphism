@@ -25,6 +25,8 @@
 
 >   type TyEnv = [(Variable, Type)]
 
+    Tests if the domain of a function type matches the type of an argument.
+
 >   unify :: Type -> Type -> Maybe Type
 >   unify (FunTy pt rt) at | pt == at = Just rt
 >   unify _             _             = Nothing
