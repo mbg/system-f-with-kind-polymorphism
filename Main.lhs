@@ -7,8 +7,7 @@
     {-- Module Imports                                                    -}
     {----------------------------------------------------------------------}
 
->   import Control.Monad.State
->   import Data.Function (on)
+>   import Control.Monad.State (StateT,get,modify,liftIO,evalStateT)
 >   import System.Environment (getArgs)
     
 >   import AST
@@ -70,20 +69,28 @@
     {-- Evaluation                                                        -}
     {----------------------------------------------------------------------}
 
+>   fix :: (Eq a) => (a -> a) -> a -> a
+>   fix f x = if x == x' then x else fix f x' 
+>             where x' = f x
+    
 >   bind :: Expr -> Expr -> Expr
 >   bind (Abs n _ e) a = cas e n a
 >   bind f           a = error $ "trying to apply " ++ show f ++ " to " ++ show a
+
+>   bindBNF :: Expr -> Expr -> Expr
+>   bindBNF (Abs n _ e) a = cas e n a
+>   bindBNF f           a = App f a
     
     Performs beta-reduction on an expression.
     
 >   reduce :: Expr -> Expr
 >   reduce (App f a) = bind (reduce f) a
 >   reduce expr      = expr
-
->   fixReduce :: Expr -> Expr
->   fixReduce e | e == e'   = e
->               | otherwise = fixReduce e'
->               where e' = reduce e
+          
+>   reduceBNF :: Expr -> Expr
+>   reduceBNF (App f a)   = bindBNF (reduceBNF f) (reduceBNF a)
+>   reduceBNF (Abs n t e) = Abs n t (reduceBNF e)
+>   reduceBNF expr        = expr
     
 >   inline' :: [Variable] -> GlEnv -> Expr -> Expr
 >   inline' []       _   e = e
@@ -93,11 +100,6 @@
     
 >   inline :: GlEnv -> Expr -> Expr
 >   inline env expr = inline' (fvs expr) env expr
-    
->   fixInline :: GlEnv -> Expr -> Expr
->   fixInline env e | e == e'   = e
->                   | otherwise = fixInline env e'
->                   where e' = inline env e 
     
     {----------------------------------------------------------------------}
     {-- User Interface                                                    -}
@@ -115,35 +117,62 @@
 
 >   showHelp :: Env ()
 >   showHelp = liftIO $ mapM_ putStrLn help
+
+>   prompt :: Env String
+>   prompt = liftIO $ putStr "> " >> getLine
     
 >   parseInput :: String -> Expr
 >   parseInput = parseExpr . alexScanTokens
+
+>   inlineInput :: String -> Env Expr
+>   inlineInput xs = do env <- get
+>                       return $ fix (inline env) $ parseInput xs
+    
+>   check :: Expr -> Env ()
+>   check expr = get >>= \env -> case infer expr (toTyEnv env) of
+>       (Just t) -> return ()
+>       Nothing  -> error "Incorrectly typed expression!"
     
 >   eval :: String -> Env ()
 >   eval (':' : 'q' :       xs) = return ()
 >   eval (':' : '?' :       xs) = showHelp >> loop
 >   eval (':' : 'f' : ' ' : xs) = lookupFreeVars xs >> loop
->   eval (':' : 't' : ' ' : xs) = do env <- get
->                                    case infer (fixInline env $ parseInput xs) (toTyEnv env) of
+>   eval (':' : 't' : ' ' : xs) = do expr <- inlineInput xs
+>                                    env <- get
+>                                    case infer expr (toTyEnv env) of
 >                                       (Just t) -> liftIO $ putStrLn $ xs ++ " : " ++ show t
 >                                       Nothing  -> liftIO $ putStrLn $ "Unable to infer the type of " ++ xs
 >                                    loop
->   eval (':' : 'i' : ' ' : xs) = do env <- get
->                                    liftIO $ putStrLn $ show $ fixInline env $ parseInput xs
+>   eval (':' : 'i' : ' ' : xs) = do expr <- inlineInput xs
+>                                    env <- get
+>                                    check expr
+>                                    liftIO $ putStrLn $ show $ fix (inline env) expr
 >                                    loop
->   eval xs                     = do env <- get
->                                    liftIO $ print $ fixReduce $ fixInline env $ parseInput xs
+>   eval (':' : '!' : ' ' : xs) = do expr <- inlineInput xs
+>                                    check expr
+>                                    liftIO $ print $ fix reduceBNF expr
+>                                    loop
+>   eval xs                     = do expr <- inlineInput xs
+>                                    check expr
+>                                    liftIO $ print $ fix reduce expr
 >                                    loop
 
+    The main UI loop prompts the user to enter a command and then
+    interprets that command using the eval function.
+
 >   loop :: Env ()
->   loop = do expr <- liftIO $ putStr "> " >> getLine
+>   loop = do expr <- prompt
 >             eval expr
+
+    Loads all modules that were specified on the command-line and then
+    enters the main UI loop.
 
 >   initialise :: [String] -> Env ()
 >   initialise args = do mapM_ loadModule args
 >                        loop
 
-    
+    The entry point for our program. It simply gets the command-line
+    arguments and then initialises the environment.
 
 >   main :: IO ()
 >   main = do args <- getArgs

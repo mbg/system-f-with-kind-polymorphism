@@ -24,22 +24,25 @@ import AST
     '('     { TOpen }
     ')'     { TClose }
     '->'    { TArrow }
-    ID      { TDef $$ }
     VAL     { TVal $$ }
     VAR     { TVar $$ }
     TYPE    { TType $$ }
     
+%right '->' 
+
 %%
 
-Def : VAR '=' Exp                   { Def $1 $3 }
-Exp : VAL                           { Val $1 }
-    | VAR                           { Var $1 }
-    | '\\' VAR ':' Type '.' Exp     { Abs $2 $4 $6 }
-    | '(' Exp Exp ')'               { App $2 $3 }
+Def  : VAR '=' Exp                  { Def $1 $3 }
+Exp  : VAL                          { Val $1 }
+     | VAR                          { Var $1 }
+     | '\\' VAR ':' Type '.' Exp    { Abs $2 $4 $6 }
+     | '(' Exp Exp ')'              { App $2 $3 }
+     | '(' Exp ')'                  { $2 }
 Type : TYPE                         { ConTy $1 }
-     | '(' Type '->' Type ')'       { FunTy $2 $4 }
-Defs : Def                          { [$1] }
-     | Def Defs                     { $1 : $2 }
+     | Type '->' Type               { FunTy $1 $3 }
+     | '(' Type ')'                 { $2 }
+Defs : Def Defs                     { $1 : $2 }
+     |                              { [] }
      
 {
 parseError :: [Token] -> a
