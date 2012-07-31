@@ -7,7 +7,7 @@
     {-- Module Imports                                                    -}
     {----------------------------------------------------------------------}
 
->   import Control.Monad.State (StateT,get,modify,liftIO,evalStateT)
+>   import Control.Monad.State hiding (fix)
 >   import System.Environment (getArgs)
     
 >   import AST
@@ -96,7 +96,7 @@
 >   inline' []       _   e = e
 >   inline' (x : xs) env e = case lookup x env of
 >       (Just (GlDef e' _)) -> inline' xs env (cas e x e')
->       Nothing             -> error "free variable with no definition"
+>       Nothing             -> error $ x ++ " is undefined"
     
 >   inline :: GlEnv -> Expr -> Expr
 >   inline env expr = inline' (fvs expr) env expr
