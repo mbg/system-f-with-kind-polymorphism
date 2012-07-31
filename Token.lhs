@@ -10,6 +10,13 @@
 >   data Token = TVar String
 >              | TType String
 >              | TVal Int
+>              | TSucc
+>              | TPred
+>              | TIf
+>              | TThen
+>              | TElse
+>              | TFix
+>              | TIsZero
 >              | TLet
 >              | TAbs
 >              | TDot

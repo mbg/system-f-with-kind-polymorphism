@@ -7,6 +7,7 @@
     {-- Module Imports                                                    -}
     {----------------------------------------------------------------------}
 
+>   import Prelude hiding (pred, succ)
 >   import Control.Monad.State hiding (fix)
 >   import System.Environment (getArgs)
     
@@ -47,8 +48,8 @@
 
 >   addDef :: Definition -> Env ()
 >   addDef (Def n e) = do modify $ \env -> case infer e (toTyEnv env) of
->                           Nothing  -> error $ "Unable to infer the type of " ++ n
->                           (Just t) -> (n,GlDef e t) : env -- TODO: replace old definitions...
+>                           (Left m)  -> error m
+>                           (Right t) -> (n, GlDef (fix (inline env) e) t) : env -- TODO: replace old definitions...
 
 >   lookupType :: String -> Env ()
 >   lookupType n = get >>= \s -> liftIO $ case lookup n (toTyEnv s) of
@@ -69,6 +70,33 @@
     {-- Evaluation                                                        -}
     {----------------------------------------------------------------------}
 
+>   succ :: Expr -> Expr
+>   succ (Val n) = Val (n+1)
+>   succ e       = Succ e
+    
+>   pred :: Expr -> Expr
+>   pred (Val n) | n > 0     = Val (n-1)
+>                | otherwise = Val 0
+>   pred e                   = Pred e
+    
+>   iszero :: Expr -> Expr
+>   iszero (Val n) | n == 0 = Val 1
+>                  | n /= 0 = Val 0
+>   iszero e                = IsZero e
+
+>   istrue :: Expr -> Bool
+>   istrue (Val n) | n /= 0 = True
+>   istrue e                = False
+    
+>   exec :: Expr -> Expr
+>   exec (Succ n)     = succ (exec n)
+>   exec (Pred n)     = pred (exec n)
+>   exec (IsZero n)   = iszero (exec n)
+>   exec (Fix f)      = exec (App f (Fix f))
+>   exec (App f a)    = bind (exec f) a
+>   exec (Cond c t f) = if istrue (exec c) then exec t else exec f
+>   exec e            = e
+    
 >   fix :: (Eq a) => (a -> a) -> a -> a
 >   fix f x = if x == x' then x else fix f x' 
 >             where x' = f x
@@ -130,8 +158,8 @@
     
 >   check :: Expr -> Env ()
 >   check expr = get >>= \env -> case infer expr (toTyEnv env) of
->       (Just t) -> return ()
->       Nothing  -> error "Incorrectly typed expression!"
+>       (Right t) -> return ()
+>       (Left m)  -> error m
     
 >   eval :: String -> Env ()
 >   eval (':' : 'q' :       xs) = return ()
@@ -140,13 +168,8 @@
 >   eval (':' : 't' : ' ' : xs) = do expr <- inlineInput xs
 >                                    env <- get
 >                                    case infer expr (toTyEnv env) of
->                                       (Just t) -> liftIO $ putStrLn $ xs ++ " : " ++ show t
->                                       Nothing  -> liftIO $ putStrLn $ "Unable to infer the type of " ++ xs
->                                    loop
->   eval (':' : 'i' : ' ' : xs) = do expr <- inlineInput xs
->                                    env <- get
->                                    check expr
->                                    liftIO $ putStrLn $ show $ fix (inline env) expr
+>                                       (Right t) -> liftIO $ putStrLn $ xs ++ " : " ++ show t
+>                                       (Left m)  -> liftIO $ putStrLn m
 >                                    loop
 >   eval (':' : '!' : ' ' : xs) = do expr <- inlineInput xs
 >                                    check expr
@@ -154,7 +177,7 @@
 >                                    loop
 >   eval xs                     = do expr <- inlineInput xs
 >                                    check expr
->                                    liftIO $ print $ fix reduce expr
+>                                    liftIO $ print $ fix exec expr
 >                                    loop
 
     The main UI loop prompts the user to enter a command and then

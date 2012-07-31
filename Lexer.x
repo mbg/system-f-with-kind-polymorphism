@@ -14,6 +14,13 @@ tokens :-
   $white+				;
   "--".*				;
   "let"                 { \s -> TLet }
+  "succ"                { \s -> TSucc }
+  "pred"                { \s -> TPred }
+  "iszero"              { \s -> TIsZero }
+  "if"                  { \s -> TIf }
+  "then"                { \s -> TThen }
+  "else"                { \s -> TElse }
+  "fix"                 { \s -> TFix }
   $lower+               { \s -> TVar s }
   $upper $lower*        { \s -> TType s }
   $digit+               { \s -> TVal (read s) }

@@ -28,6 +28,13 @@ import AST
     VAR     { TVar $$ }
     TYPE    { TType $$ }
     LET     { TLet }
+    SUCC    { TSucc }
+    PRED    { TPred }
+    ISZERO  { TIsZero }
+    IF      { TIf }
+    THEN    { TThen }
+    ELSE    { TElse }
+    FIX     { TFix }
     
 %right VAR
 %left '=' 
@@ -39,6 +46,11 @@ Def  : LET VAR '=' Exp              { Def $2 $4 }
 
 Exp  :: { Expr }
      : '\\' VAR ':' Type '.' Exp    { Abs $2 $4 $6 }
+     | SUCC Exp                     { Succ $2 }
+     | PRED Exp                     { Pred $2 }
+     | ISZERO Exp                   { IsZero $2 }
+     | FIX Exp                      { Fix $2 }
+     | IF Exp THEN Exp ELSE Exp     { Cond $2 $4 $6 }
      | Exp1                         { $1 }
 Exp1 :: { Expr }
      : Exp1 Atom                    { App $1 $2 }

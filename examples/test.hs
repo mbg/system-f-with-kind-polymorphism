@@ -1,20 +1,24 @@
 
 -- the identity function
-let id = \x : Int.x                   
+let id = \x : Nat.x                   
 
 -- we can use definitions as free variables
-let app = \f : Int -> Int.\x : Int.id
+let app = \f : Nat -> Nat.\x : Nat.id
 
 -- we can use definitions as aliases
 let free = id
 let x = free
-let y = \free : Int . x
+let y = \free : Nat . x
 
 -- simple function application
-let simpl = \f : Int -> Int.\x : Int.f x
+let simpl = \f : Nat -> Nat.\x : Nat.f x
 
 -- this expression evaluates differently if the :! command is used
-let bnf = (\f : (Int -> Int).\x : Int.f 6) id
+let bnf = (\f : (Nat -> Nat).\x : Nat.f 6) id
 
 -- function application is left associative
-let e = (\f : Int -> Int.\x : Int.f x) id 1
+let e = (\f : Nat -> Nat.\x : Nat.f x) id 1
+
+let iadd = \r : Nat -> Nat -> Nat.\x : Nat.\y : Nat.if iszero x then y else succ r (pred x) y
+
+let add = fix iadd

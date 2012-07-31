@@ -7,7 +7,9 @@ In this module we define the type system of the simply-typed lambda-calculus.
 
 > module Types (
 >   TyName,
->   Type(..)
+>   Type(..),
+>   natType,
+>   funType
 > )
 > where
 
@@ -19,7 +21,18 @@ In this module we define the type system of the simply-typed lambda-calculus.
     
 >   type TyName = String
 
-    Types can either be concrete types such as "Int" or they can be function
+
+
+>   data Nat = Zero
+>            | Succ Nat
+
+>   natType :: Type
+>   natType = ConTy "Nat"
+
+>   funType :: Type
+>   funType = FunTy natType natType
+
+    Types can either be concrete types such as "Nat" or they can be function
     types with a domain and codomain.
     
 >   data Type = ConTy TyName
