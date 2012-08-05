@@ -14,10 +14,27 @@
     {-- Module Imports                                                    -}
     {----------------------------------------------------------------------}
 
+>   import Control.Monad.Instances
 >   import Text.Printf (printf)
 >   import Types
 >   import AST
 
+    {----------------------------------------------------------------------}
+    {-- Error Messages                                                    -}
+    {----------------------------------------------------------------------}
+
+>   errFunTy :: String
+>   errFunTy = "\n\tExpected function of type (%s -> t),\n\tbut found object of type %s instead.\n" 
+
+>   errObjTy :: String
+>   errObjTy = "\n\tExpected object of type %s,\n\tbut found object of type %s instead.\n"
+
+>   errFixTy :: String
+>   errFixTy = "\n\tExpected function of type (t -> t) as the argument of fix,\n\tbut found object of type %s instead.\n" 
+
+>   errUndef :: String
+>   errUndef = "\n\tUnable to infer the type of `%s' because it is undefined.\n"
+    
     {----------------------------------------------------------------------}
     {-- Type Inference                                                    -}
     {----------------------------------------------------------------------}
@@ -30,20 +47,20 @@
 
 >   unify :: Type -> Type -> Either String Type
 >   unify (FunTy pt rt) at | pt == at = Right rt
->   unify t             at            = Left $ printf "Expected function of type (%s -> t), but found object of type %s instead." (show at) (show t)
+>   unify t             at            = Left $ printf errFunTy (show at) (show t)
 
 >   ensure :: Type -> Type -> Either String Type
 >   ensure x y | x == y    = Right x
->              | otherwise = Left $ printf "Expected object of type %s, but found object of type %s instead." (show y) (show x)
+>              | otherwise = Left $ printf errObjTy (show y) (show x)
 
 >   isFixFunction :: Type -> Either String Type
 >   isFixFunction (FunTy pt rt) | pt == rt = Right pt
->   isFixFunction t                        = Left $ printf "Expected function of type (t -> t), but found object of type %s instead." (show t)
+>   isFixFunction t                        = Left $ printf errFixTy (show t)
 
 >   typeLookup :: Variable -> TyEnv -> Either String Type
 >   typeLookup x env = case lookup x env of
 >       (Just t) -> Right t
->       Nothing  -> Left $ "Unable to infer the type of `" ++ x ++ "' because it is undefined."
+>       Nothing  -> Left $ printf errUndef x
 
     Given an expression and a type environment, this function attempts to
     infer the type of the expression.

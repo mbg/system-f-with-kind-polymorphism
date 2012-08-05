@@ -9,47 +9,33 @@
 
 >   import Prelude hiding (pred, succ)
 >   import Control.Monad.State hiding (fix)
+>   import Data.Function (on)
 >   import System.Environment (getArgs)
+>   import System.IO
+>   import Text.Printf (printf)
     
 >   import AST
 >   import Lexer
 >   import Parser
 >   import Types
 >   import TypeInference
+>   import Interpreter
+>   import Compiler
 
     {----------------------------------------------------------------------}
     {-- Global Environment                                                -}
     {----------------------------------------------------------------------}
-    
->   data GlDef = GlDef {
->       glExpr :: Expr,
->       glType :: Type
->   }
-    
-    The global enviornment contains a list of all definitions and their
-    inferred types.
-    
->   type GlEnv = [(Variable, GlDef)]
 
-    We use the global environment as state parameter for an instance of the
-    state monad transformer on top of IO.
-    
->   type Env = StateT GlEnv IO
+>   foo :: Eq a => (a,b) -> (a,b) -> Bool
+>   foo = (/=) `on` fst
 
-    The type-inferrence algorithm expects a type environment rather than a
-    global environment so that we need two little helper functions which
-    remove the expressions from the environment.
-   
->   toTyPair :: (Variable, GlDef) -> (Variable, Type)
->   toTyPair (n, GlDef _ t) = (n,t)
-   
->   toTyEnv :: GlEnv -> TyEnv
->   toTyEnv = map toTyPair
+>   update :: Eq a => (a,b) -> [(a,b)] -> [(a,b)]
+>   update x = (:) x . filter (foo x)
 
 >   addDef :: Definition -> Env ()
 >   addDef (Def n e) = do modify $ \env -> case infer e (toTyEnv env) of
 >                           (Left m)  -> error m
->                           (Right t) -> (n, GlDef (fix (inline env) e) t) : env -- TODO: replace old definitions...
+>                           (Right t) -> update (n, GlDef e t) env 
 
 >   lookupType :: String -> Env ()
 >   lookupType n = get >>= \s -> liftIO $ case lookup n (toTyEnv s) of
@@ -66,69 +52,15 @@
 >                     mapM_ addDef $ parseProg $ alexScanTokens xs
 >                     liftIO $ putStrLn $ "Loaded " ++ m
 
-    {----------------------------------------------------------------------}
-    {-- Evaluation                                                        -}
-    {----------------------------------------------------------------------}
-
->   succ :: Expr -> Expr
->   succ (Val n) = Val (n+1)
->   succ e       = Succ e
-    
->   pred :: Expr -> Expr
->   pred (Val n) | n > 0     = Val (n-1)
->                | otherwise = Val 0
->   pred e                   = Pred e
-    
->   iszero :: Expr -> Expr
->   iszero (Val n) | n == 0 = Val 1
->                  | n /= 0 = Val 0
->   iszero e                = IsZero e
-
->   istrue :: Expr -> Bool
->   istrue (Val n) | n /= 0 = True
->   istrue e                = False
-    
->   exec :: Expr -> Expr
->   exec (Succ n)     = succ (exec n)
->   exec (Pred n)     = pred (exec n)
->   exec (IsZero n)   = iszero (exec n)
->   exec (Fix f)      = exec (App f (Fix f))
->   exec (App f a)    = bind (exec f) a
->   exec (Cond c t f) = if istrue (exec c) then exec t else exec f
->   exec e            = e
-    
->   fix :: (Eq a) => (a -> a) -> a -> a
->   fix f x = if x == x' then x else fix f x' 
->             where x' = f x
-    
->   bind :: Expr -> Expr -> Expr
->   bind (Abs n _ e) a = cas e n a
->   bind f           a = error $ "trying to apply " ++ show f ++ " to " ++ show a
-
->   bindBNF :: Expr -> Expr -> Expr
->   bindBNF (Abs n _ e) a = cas e n a
->   bindBNF f           a = App f a
-    
-    Performs beta-reduction on an expression.
-    
->   reduce :: Expr -> Expr
->   reduce (App f a) = bind (reduce f) a
->   reduce expr      = expr
-          
->   reduceBNF :: Expr -> Expr
->   reduceBNF (App f a)   = bindBNF (reduceBNF f) (reduceBNF a)
->   reduceBNF (Abs n t e) = Abs n t (reduceBNF e)
->   reduceBNF expr        = expr
-    
 >   inline' :: [Variable] -> GlEnv -> Expr -> Expr
 >   inline' []       _   e = e
 >   inline' (x : xs) env e = case lookup x env of
 >       (Just (GlDef e' _)) -> inline' xs env (cas e x e')
->       Nothing             -> error $ x ++ " is undefined"
+>       Nothing             -> inline' xs env e --error $ x ++ " is undefined"
     
 >   inline :: GlEnv -> Expr -> Expr
 >   inline env expr = inline' (fvs expr) env expr
-    
+
     {----------------------------------------------------------------------}
     {-- User Interface                                                    -}
     {----------------------------------------------------------------------}
@@ -138,8 +70,10 @@
 >       " Commands available from the prompt:",
 >       "   <expr>\t\t\tevaluate expression to HNF",
 >       "   :! <expr>\t\t\tevaluate expression to BNF",
+>       "   :c <file>\t\t\tcompile program",
+>       "   :e <expr>\t\t\tshow evaluation steps",
 >       "   :f <expr>\t\t\tfind free variables",
->       "   :i <expr>\t\t\treplace free variables/inline",
+>       "   :s <expr>\t\t\ttranslate to STG language",
 >       "   :t <expr>\t\t\tshow type",
 >       "   :q\t\t\t\tquit"]
 
@@ -154,38 +88,68 @@
 
 >   inlineInput :: String -> Env Expr
 >   inlineInput xs = do env <- get
->                       return $ fix (inline env) $ parseInput xs
+>                       return {-$ inline env-} $ parseInput xs
     
->   check :: Expr -> Env ()
->   check expr = get >>= \env -> case infer expr (toTyEnv env) of
->       (Right t) -> return ()
->       (Left m)  -> error m
+>   check :: Expr -> Env () -> Env ()
+>   check expr f = get >>= \env -> case infer expr (toTyEnv env) of
+>       (Right t) -> f
+>       (Left m)  -> liftIO $ putStrLn m
     
->   eval :: String -> Env ()
->   eval (':' : 'q' :       xs) = return ()
->   eval (':' : '?' :       xs) = showHelp >> loop
->   eval (':' : 'f' : ' ' : xs) = lookupFreeVars xs >> loop
->   eval (':' : 't' : ' ' : xs) = do expr <- inlineInput xs
->                                    env <- get
->                                    case infer expr (toTyEnv env) of
->                                       (Right t) -> liftIO $ putStrLn $ xs ++ " : " ++ show t
->                                       (Left m)  -> liftIO $ putStrLn m
->                                    loop
->   eval (':' : '!' : ' ' : xs) = do expr <- inlineInput xs
->                                    check expr
->                                    liftIO $ print $ fix reduceBNF expr
->                                    loop
->   eval xs                     = do expr <- inlineInput xs
->                                    check expr
->                                    liftIO $ print $ fix exec expr
->                                    loop
+>   explain :: Expr -> Env ()
+>   explain e = do
+>       env <- get
+>       case eval env e of
+>           (Left  m) -> liftIO $ putStrLn m
+>           (Right r) -> if e == r 
+>                        then return ()
+>                        else do
+>                           liftIO $ putStrLn $ "=> " ++ show r
+>                           explain r
+    
+>   fixM :: (Eq a, Monad m) => (a -> m a) -> a -> m a
+>   fixM f x = do x' <- f x
+>                 if x == x' then return x else fixM f x' 
+    
+>   run :: String -> Env ()
+>   run (':' : 'q' :       []) = return ()
+>   run (':' : '?' :       xs) = showHelp >> loop
+>   run (':' : 'f' : ' ' : xs) = lookupFreeVars xs >> loop
+>   run (':' : 't' : ' ' : xs) = do expr <- inlineInput xs
+>                                   env <- get
+>                                   case infer expr (toTyEnv env) of
+>                                      (Right t) -> liftIO $ putStrLn $ xs ++ " : " ++ show t
+>                                      (Left m)  -> liftIO $ putStrLn m
+>                                   loop
+>   run (':' : '!' : ' ' : xs) = do expr <- inlineInput xs
+>                                   check expr $ do
+>                                       liftIO $ print $ fix reduceBNF expr
+>                                   loop
+>   run (':' : 'e' : ' ' : xs) = do expr <- inlineInput xs
+>                                   check expr $ do
+>                                       liftIO $ print expr
+>                                   explain expr
+>                                   loop
+>   run (':' : 's' : ' ' : xs) = do expr <- inlineInput xs
+>                                   check expr $ do
+>                                       liftIO $ print $ compile [Def "it" expr]
+>                                   loop
+>   run (':' : 'c' : ' ' : xs) = do loop
+>   run (':' :             xs) = do liftIO $ putStrLn $ printf "Unknown command ':%s'" xs
+>                                   loop
+>   run xs                     = do expr <- inlineInput xs
+>                                   check expr $ do
+>                                       env <- get
+>                                       case fixM (eval env) expr of
+>                                           (Left m)  -> liftIO $ putStrLn m
+>                                           (Right r) -> liftIO $ print r
+>                                   loop
 
     The main UI loop prompts the user to enter a command and then
     interprets that command using the eval function.
 
 >   loop :: Env ()
 >   loop = do expr <- prompt
->             eval expr
+>             run expr
 
     Loads all modules that were specified on the command-line and then
     enters the main UI loop.
@@ -198,7 +162,8 @@
     arguments and then initialises the environment.
 
 >   main :: IO ()
->   main = do args <- getArgs
+>   main = do hSetBuffering stdout NoBuffering
+>             args <- getArgs
 >             evalStateT (initialise args) []
 
 {--------------------------------------------------------------------------------------------------
