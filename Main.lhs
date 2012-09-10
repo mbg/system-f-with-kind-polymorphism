@@ -8,6 +8,7 @@
     {----------------------------------------------------------------------}
 
 >   import Prelude hiding (pred, succ)
+>   import Control.Monad.Error hiding (fix)
 >   import Control.Monad.State hiding (fix)
 >   import Data.Function (on)
 >   import System.Environment (getArgs)
@@ -20,7 +21,6 @@
 >   import Types
 >   import TypeInference
 >   import Interpreter
->   import Compiler
 
     {----------------------------------------------------------------------}
     {-- Global Environment                                                -}
@@ -33,9 +33,11 @@
 >   update x = (:) x . filter (foo x)
 
 >   addDef :: Definition -> Env ()
->   addDef (Def n e) = do modify $ \env -> case infer e (toTyEnv env) of
->                           (Left m)  -> error m
->                           (Right t) -> update (n, GlDef e t) env 
+>   addDef (Def n e) = do
+>       env <- get
+>       case infer e (toTyEnv env) of
+>           (Left m)  -> error m
+>           (Right t) -> put $ update (n, GlDef e t) env 
 
 >   lookupType :: String -> Env ()
 >   lookupType n = get >>= \s -> liftIO $ case lookup n (toTyEnv s) of
@@ -47,19 +49,10 @@
 >       (Just (GlDef e _)) -> putStrLn $ show $ fvs e
 >       Nothing            -> putStrLn $ n ++ " is undefined!"
 
->   loadModule :: String -> Env ()
+>   loadModule :: String ->  Env ()
 >   loadModule m = do xs <- liftIO $ readFile m
 >                     mapM_ addDef $ parseProg $ alexScanTokens xs
 >                     liftIO $ putStrLn $ "Loaded " ++ m
-
->   inline' :: [Variable] -> GlEnv -> Expr -> Expr
->   inline' []       _   e = e
->   inline' (x : xs) env e = case lookup x env of
->       (Just (GlDef e' _)) -> inline' xs env (cas e x e')
->       Nothing             -> inline' xs env e --error $ x ++ " is undefined"
-    
->   inline :: GlEnv -> Expr -> Expr
->   inline env expr = inline' (fvs expr) env expr
 
     {----------------------------------------------------------------------}
     {-- User Interface                                                    -}
@@ -106,14 +99,15 @@
 >                           liftIO $ putStrLn $ "=> " ++ show r
 >                           explain r
     
->   fixM :: (Eq a, Monad m) => (a -> m a) -> a -> m a
->   fixM f x = do x' <- f x
->                 if x == x' then return x else fixM f x' 
+>   compile :: String -> Env ()
+>   compile fn = do return ()
+
     
 >   run :: String -> Env ()
 >   run (':' : 'q' :       []) = return ()
 >   run (':' : '?' :       xs) = showHelp >> loop
->   run (':' : 'f' : ' ' : xs) = lookupFreeVars xs >> loop
+>   run (':' : 'f' : ' ' : xs) = do liftIO $ print (fvs $ parseInput xs) 
+>                                   loop
 >   run (':' : 't' : ' ' : xs) = do expr <- inlineInput xs
 >                                   env <- get
 >                                   case infer expr (toTyEnv env) of
@@ -129,11 +123,16 @@
 >                                       liftIO $ print expr
 >                                   explain expr
 >                                   loop
+>   run (':' : 'c' : ' ' : xs) = do compile xs
+>                                   loop
 >   run (':' : 's' : ' ' : xs) = do expr <- inlineInput xs
 >                                   check expr $ do
->                                       liftIO $ print $ compile [Def "it" expr]
+>                                       env <- get
+>                                       case eval env expr of
+>                                           (Left m)  -> liftIO $ putStrLn m
+>                                           (Right r) -> do addDef (Def "it" r)
+>                                                           liftIO $ print r
 >                                   loop
->   run (':' : 'c' : ' ' : xs) = do loop
 >   run (':' :             xs) = do liftIO $ putStrLn $ printf "Unknown command ':%s'" xs
 >                                   loop
 >   run xs                     = do expr <- inlineInput xs
@@ -141,7 +140,8 @@
 >                                       env <- get
 >                                       case fixM (eval env) expr of
 >                                           (Left m)  -> liftIO $ putStrLn m
->                                           (Right r) -> liftIO $ print r
+>                                           (Right r) -> do addDef (Def "it" r)
+>                                                           liftIO $ print r
 >                                   loop
 
     The main UI loop prompts the user to enter a command and then
@@ -155,7 +155,7 @@
     enters the main UI loop.
 
 >   initialise :: [String] -> Env ()
->   initialise args = do mapM_ loadModule args
+>   initialise args = do mapM_ loadModule args 
 >                        loop
 
     The entry point for our program. It simply gets the command-line

@@ -8,7 +8,7 @@
 >   GlEnv,
 >   Env,
 >   toTyEnv,
->   eval,fix,reduceBNF
+>   eval,fix,fixM,reduceBNF
 > ) where
 
     {----------------------------------------------------------------------}
@@ -16,6 +16,7 @@
     {----------------------------------------------------------------------}
     
 >   import Prelude hiding (succ, pred)
+>   import Debug.Trace
 
 >   import Control.Applicative
 >   import Control.Monad.Error hiding (fix)
@@ -64,6 +65,10 @@
     {-- Evaluation                                                        -}
     {----------------------------------------------------------------------}
     
+>   fixM :: (Eq a, Monad m) => (a -> m a) -> a -> m a
+>   fixM f x = do x' <- f x
+>                 if x == x' then return x else fixM f x' 
+    
 >   succ :: Expr -> Expr
 >   succ (Val n) = Val (n+1)
 >   succ e       = Succ e
@@ -83,21 +88,21 @@
 >   istrue e                = False
     
 >   eval' :: Expr -> Interpreter Expr
->   eval' (Succ n)     = succ <$> eval' n
->   eval' (Pred n)     = pred <$> eval' n
->   eval' (IsZero n)   = iszero <$> eval' n
->   eval' (Fix f)      = eval' (App f (Fix f))
->   eval' (App f a)    = eval' f >>= \r -> bind r a
+>   eval' (Succ n)     = succ <$> fixM eval' n
+>   eval' (Pred n)     = pred <$> fixM eval' n
+>   eval' (IsZero n)   = iszero <$> fixM eval' n
+>   eval' (Fix f)      = fixM eval' (App f (Fix f))
+>   eval' (App f a)    = fixM eval' f >>= \r -> bind r a
 >   eval' (Cond c t f) = do 
->       r <- eval' c
+>       r <- fixM eval' c
 >       if istrue r
->       then eval' t
->       else eval' f
+>       then fixM eval' t
+>       else fixM eval' f
 >   eval' (Var n)      = do
 >       env <- get
 >       case lookup n env of
 >           Nothing            -> throwError $ n ++ " is undefined"
->           (Just (GlDef e t)) -> eval' e
+>           (Just (GlDef e t)) -> fixM eval' e
 >   eval' e            = return e
     
 >   fix :: (Eq a) => (a -> a) -> a -> a

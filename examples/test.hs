@@ -19,6 +19,8 @@ let bnf = (\f : (Nat -> Nat).\x : Nat.f 6) id
 -- function application is left associative
 let e = (\f : Nat -> Nat.\x : Nat.f x) id 1
 
+let inf = fix (\r : Nat.succ r)
+
 -- addition on two natural numbers: we take three arguments:
 --      r: the continuation 
 --      x: the first operand
@@ -29,3 +31,9 @@ let iadd = \r : Nat -> Nat -> Nat.\x : Nat.\y : Nat.if iszero x then y else succ
 
 -- add is simply the least fixed point of iadd
 let add = fix iadd
+
+let isub = \r : Nat -> Nat -> Nat.\x : Nat.\y : Nat.if iszero y then x else pred r x (pred y) 
+let sub = fix isub
+
+let imul = \r : Nat -> Nat -> Nat.\x : Nat.\y : Nat.if iszero x then 0 else add y (r (pred x) y) 
+let mul = fix imul
