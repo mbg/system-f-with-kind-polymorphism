@@ -8,11 +8,12 @@ import Token
 $digit = 0-9
 $lower = [a-z]
 $upper = [A-Z]
+$ctr   = [$lower $upper]
 
 tokens :-
 
-  $white+				;
-  "--".*				;
+  $white+ ;
+  "--".* ;
   "let"                 { \s -> TLet }
   "succ"                { \s -> TSucc }
   "pred"                { \s -> TPred }
@@ -21,13 +22,27 @@ tokens :-
   "then"                { \s -> TThen }
   "else"                { \s -> TElse }
   "fix"                 { \s -> TFix }
+  "type"                { \s -> TType }
+  "kind"                { \s -> TKind }
+  "forall"              { \s -> TForAll }
+  "with"                { \s -> TWith }
+  "'" $lower+           { \s -> TTyVar s }
   $lower+               { \s -> TVar s }
-  $upper $lower*        { \s -> TType s }
+  $upper $ctr*          { \s -> TCon s }
   $digit+               { \s -> TVal (read s) }
+  "/\"                  { \s -> TTyAbs }
   "\"                   { \s -> TAbs }
   "."                   { \s -> TDot }
+  ","                   { \s -> TComma }
   "("                   { \s -> TOpen }
   ")"                   { \s -> TClose }
+  "["                   { \s -> TAngLeft }
+  "]"                   { \s -> TAngRight }
+  "{"                   { \s -> TCurlyLeft }
+  "}"                   { \s -> TCurlyRight }
   ":"                   { \s -> TColon }
   "->"                  { \s -> TArrow }
+  "~>"                  { \s -> TKindArrow }
   "="                   { \s -> TEquals }
+  "*"                   { \s -> TStar }
+  "_"                   { \s -> THole }
