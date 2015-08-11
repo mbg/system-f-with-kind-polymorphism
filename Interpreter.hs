@@ -30,7 +30,7 @@ import qualified Data.Map as M
 import Kinds
 import Types
 import TypeCheck
-import AST
+import Expr
 import Env
     
 {----------------------------------------------------------------------}
@@ -46,24 +46,6 @@ type Interpreter = ErrorT String (State GlEnv)
 fixM :: (Eq a, Monad m) => (a -> m a) -> a -> m a
 fixM f x = do x' <- f x
               if x == x' then return x else fixM f x' 
-    
-succ :: Expr -> Expr
-succ (Val n) = Val (n+1)
-succ e       = Succ e
-    
-pred :: Expr -> Expr
-pred (Val n) | n > 0     = Val (n-1)
-             | otherwise = Val 0
-pred e                   = Pred e
-    
-iszero :: Expr -> Expr
-iszero (Val n) | n == 0 = Val 1
-               | n /= 0 = Val 0
-iszero e                = IsZero e
-
-istrue :: Expr -> Bool
-istrue (Val n) | n /= 0 = True
-istrue e                = False
     
 eval' :: Expr -> Interpreter Expr
 --eval' (Succ n)     = succ <$> fixM eval' n

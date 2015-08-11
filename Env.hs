@@ -12,7 +12,7 @@ import qualified Data.Map as M
 
 import Kinds
 import Types
-import AST 
+import Expr 
 
 {----------------------------------------------------------------------}
 {-- Global Environment                                                -}

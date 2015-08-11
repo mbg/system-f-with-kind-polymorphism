@@ -10,7 +10,7 @@ module Parser (
 import Token
 import Kinds
 import Types
-import AST
+import Expr
 }
 
 %name parseDef Def
@@ -111,19 +111,13 @@ Exp  :: { Expr }
      : '\\' VAR ':' Type '.' Exp    { Abs $2 $4 $6 }
      | '/\\' VAR ':' Kind '.' Exp   { TyAbs $2 $4 $6 }
      | WITH VAR '.' Exp             { KindAbs $2 $4 }
-     | SUCC Exp                     { Succ $2 }
-     | PRED Exp                     { Pred $2 }
-     | ISZERO Exp                   { IsZero $2 }
-     | FIX Exp                      { Fix $2 }
-     | IF Exp THEN Exp ELSE Exp     { Cond $2 $4 $6 }
      | Exp1                         { $1 }
 Exp1 :: { Expr }
      : Exp1 Atom                    { App $1 $2 }
      | Exp1 '[' TyArgList ']'           { mkTyApp $1 $3 }
      | Atom                         { $1 }
 Atom :: { Expr }
-     : VAL                          { Val $1 }
-     | VAR                          { Var $1 }
+     : VAR                          { Var $1 }
      | '_'                          { TyHole }
      | '(' Exp ')'                  { $2 }
 

@@ -27,7 +27,7 @@ tokens :-
   "forall"              { \s -> TForAll }
   "with"                { \s -> TWith }
   "'" $lower+           { \s -> TTyVar s }
-  $lower+               { \s -> TVar s }
+  $lower $ctr*          { \s -> TVar s }
   $upper $ctr*          { \s -> TCon s }
   $digit+               { \s -> TVal (read s) }
   "/\"                  { \s -> TTyAbs }

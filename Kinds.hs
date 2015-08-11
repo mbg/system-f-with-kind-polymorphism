@@ -18,7 +18,6 @@ data Kind = KStar
           | KArrow Kind Kind
           | KForAll String Kind  
           | KName String 
-          deriving Eq
 
 instance Show Kind where
     show KStar         = "*"

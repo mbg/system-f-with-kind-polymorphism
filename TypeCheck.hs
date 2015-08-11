@@ -23,7 +23,7 @@ import Subst
 import Reductible
 import Kinds
 import Types
-import AST
+import Expr
 import Env
 import Inline
 import KindCheck
@@ -125,12 +125,6 @@ infer (App f x) env
         ft' <- inlineTypesHNF (globalEnv env) ft
         xt' <- inlineTypes (globalEnv env) xt
         unify (globalEnv env) ft' xt'
-infer (Cond c t f) env = do 
-    ct <- infer c env
-    ensure ct natType
-    tt <- infer t env
-    ft <- infer f env
-    ensure tt ft
 infer (TyAbs x k e) env = do
     t <- infer e (addKinding x k env)
     return (ForAllTy x k t)

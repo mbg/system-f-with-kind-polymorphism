@@ -4,9 +4,10 @@ import qualified Data.Map as M
 
 import Kinds
 import Types
-import AST
+import Expr
 import Env
 import Reductible
+import Alpha
 
 -- | Inlines kind aliases.
 inlineKinds :: M.Map String Kind -> Kind -> Either String Kind 

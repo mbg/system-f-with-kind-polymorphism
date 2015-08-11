@@ -48,7 +48,6 @@ data Type = ConTy TyName
           | AppTy Type Type
           | KindAbsTy String Type
           | KindAppTy Type Kind
-          deriving Eq
 
 {-
     We create an instance of the Show type-class for the Type data type so
